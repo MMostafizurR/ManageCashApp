@@ -2,9 +2,14 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib import messages
-from .forms import UserRegistrationForm
-from .models import AddCash, Expense
+from .forms import UserRegistrationForm, AddCashForm, ExpenseForm
+
 from django.contrib.auth.decorators import login_required
+from operator import attrgetter
+
+from itertools import chain
+
+from .models import AddCash, Expense
 
 # Create your views here.
 def register_page(request):
@@ -18,7 +23,7 @@ def register_page(request):
             return redirect('login')
     else:
         form = UserRegistrationForm
-    return render(request, 'registration.html', {'form': form})
+    return render(request, 'register.html', {'form': form})
 
 def login_page(request):
     if request.method == 'POST':
@@ -38,7 +43,7 @@ def login_page(request):
 
         if user is not None:
             login(request, user)
-            return redirect('dashboard')
+            return redirect('home')
         else:
             messages.error(request, 'Invalid username/password.')
 
@@ -48,39 +53,62 @@ def logout_page(request):
     logout(request)
     return redirect('login')
 
-@login_required(login_url='login')
-def dashboard_view(request):
-    add_cash_records = AddCash.objects.filter(user=request.user)
-    expense_records = Expense.objects.filter(user=request.user)
-    context = {
-        'add_cash_records': add_cash_records,
-        'expense_records': expense_records,
-    }
-    return render(request, 'dashboard.html', context)
+
 
 @login_required(login_url='login')
 def profile_view(request):
     return render(request, 'profile.html')
 
+
+
 @login_required(login_url='login')
-def add_transaction_view(request):
+def home(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
+    
+    income_records = AddCash.objects.filter(user=request.user)
+    expense_records = Expense.objects.filter(user=request.user)
+    
+    total_income = sum(item.amount for item in income_records)
+    total_expense = sum(item.amount for item in expense_records)
+    remaining_balance = total_income - total_expense
+    
+    all_transactions = sorted(
+        chain(income_records, expense_records),
+        key=attrgetter('datetime'),
+        reverse=True
+    )
+    
+    context = {
+        'remaining_balance': remaining_balance,
+        'transactions': all_transactions,
+    }
+    
+    return render(request, 'home.html', context)
+
+
+@login_required(login_url='login')
+def add_cash_view(request):
     if request.method == 'POST':
-        trans_type = request.POST.get('trans_type')
-        if trans_type == 'income':
-            form = AddCashForm(request.POST)
-            if form.is_valid():
-                instance = form.save(commit=False)
-                instance.user = request.user
-                instance.save()
-                return redirect('dashboard')
-        elif trans_type == 'expense':
-            form = ExpenseForm(request.POST)
-            if form.is_valid():
-                instance = form.save(commit=False)
-                instance.user = request.user
-                instance.save()
-                return redirect('dashboard')
+        form = AddCashForm(request.POST)
+        if form.is_valid():
+            instance = form.save(commit=False)
+            instance.user = request.user
+            instance.save()
+            return redirect('home')
     else:
-        income_form = AddCashForm()
-        expense_form = ExpenseForm()
-    return render(request, 'transaction_form.html', {'income_form': income_form, 'expense_form': expense_form})
+        form = AddCashForm()
+    return render(request, 'addCash.html', {'form': form})
+
+@login_required(login_url='login')
+def add_expense_view(request):
+    if request.method == 'POST':
+        form = ExpenseForm(request.POST)
+        if form.is_valid():
+            instance = form.save(commit=False)
+            instance.user = request.user
+            instance.save()
+            return redirect('home')
+    else:
+        form = ExpenseForm()
+    return render(request, 'addExpense.html', {'form': form})
