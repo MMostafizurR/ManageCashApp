@@ -27,7 +27,8 @@ A full-stack web application built using **Python and Django** to help users tra
 Follow these steps to set up and run the ManageCashApp locally on your machine.
 
 ### 1. Clone the Repository
-🎯 Purpose of the Project
+##🎯 Purpose of the Project
+
 This project was built to practice handling database queries, calculating financial totals using Django ORM aggregations, managing user permissions, and reinforcing practical backend development patterns.
 
 ```bash
